@@ -1,46 +1,66 @@
 <?php
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: POST");
-header("Access-Control-Allow-Headers: Content-Type");
+header('Content-Type: application/json');
 
-// Database connection
-require_once 'db.php';
+// Include your existing database connection file
+include 'db.php';
 
-// Get the JSON input
-$data = $_POST;
+// Assume db.php sets up a `$conn` variable for the connection
 
-// Check if required fields are set
-if (
-    isset($data['package_name']) &&
-    isset($data['day_type']) &&
-    isset($data['week_schedule']) &&
-    isset($data['hours']) &&
-    isset($data['price']) &&
-    isset($data['amenities_id'])
-) {
-    $package_name = $data['package_name'];
-    $day_type = $data['day_type'];
-    $week_schedule = $data['week_schedule'];
-    $hours = $data['hours'];
-    $price = $data['price'];
-    $amenities_id = $data['amenities_id'];
-
-    $sql = "INSERT INTO packages (package_name, day_type, week_schedule, hours, price, amenities_id)
-            VALUES (?, ?, ?, ?, ?, ?)";
-    
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("sssssi", $package_name, $day_type, $week_schedule, $hours, $price, $amenities_id);
-
-    if ($stmt->execute()) {
-        echo json_encode(["status" => "success", "message" => "Package added successfully."]);
-    } else {
-        echo json_encode(["status" => "error", "message" => "Failed to add package."]);
-    }
-
-    $stmt->close();
-} else {
-    echo json_encode(["status" => "error", "message" => "Incomplete data."]);
+// Check connection
+if (!$conn) {
+    http_response_code(500);
+    echo json_encode([
+        "status" => "error",
+        "message" => "Database connection failed"
+    ]);
+    exit();
 }
 
+// Get POST data
+$package_name = isset($_POST['package_name']) ? trim($_POST['package_name']) : '';
+$day_type = isset($_POST['day_type']) ? trim($_POST['day_type']) : '';
+$week_schedule = isset($_POST['week_schedule']) ? trim($_POST['week_schedule']) : '';
+$hours = isset($_POST['hours']) ? trim($_POST['hours']) : '';
+$price = isset($_POST['price']) ? trim($_POST['price']) : '';
+$amenities_id = isset($_POST['amenities_id']) ? trim($_POST['amenities_id']) : '';
+
+// Basic validation
+if (empty($package_name) || empty($day_type) || empty($week_schedule) || empty($hours) || empty($price) || empty($amenities_id)) {
+    http_response_code(400);
+    echo json_encode([
+        "status" => "error",
+        "message" => "Please fill in all required fields."
+    ]);
+    exit();
+}
+
+// Prepare and bind
+$stmt = $conn->prepare("INSERT INTO packages (package_name, day_type, week_schedule, hours, price, amenities_id) VALUES (?, ?, ?, ?, ?, ?)");
+if (!$stmt) {
+    http_response_code(500);
+    echo json_encode([
+        "status" => "error",
+        "message" => "Prepare failed: " . $conn->error
+    ]);
+    exit();
+}
+
+$stmt->bind_param("sssidi", $package_name, $day_type, $week_schedule, $hours, $price, $amenities_id);
+
+// Execute
+if ($stmt->execute()) {
+    echo json_encode([
+        "status" => "success",
+        "message" => "Package added successfully."
+    ]);
+} else {
+    http_response_code(500);
+    echo json_encode([
+        "status" => "error",
+        "message" => "Execute failed: " . $stmt->error
+    ]);
+}
+
+$stmt->close();
 $conn->close();
 ?>
